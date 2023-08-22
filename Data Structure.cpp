@@ -148,3 +148,148 @@ template<typename T> struct segtree
     }
     segnode query(const int l,const int r) {return query(1,l,r);}
 };
+
+template<typename T> struct BST
+{
+    struct Node
+    {
+        T val;
+        int cnt,siz,lson,rson;
+        
+        Node(T val): val(val),cnt(1),siz(1),lson(-1),rson(-1) {}
+    };
+
+    vector<Node> nodes;
+    int rt=-1;
+
+    int siz(int u) const {return u==-1?0:nodes[u].siz;}
+    void maintain(int u) {nodes[u].siz=siz(nodes[u].lson)+siz(nodes[u].rson)+nodes[u].cnt;}
+
+    int newnode(T val)
+    {
+        nodes.push_back(Node(val));
+        return nodes.size()-1;
+    }
+
+    int find(T val) const
+    {
+        int p=rt;
+        while (p!=-1 && nodes[p].val!=val)
+        {
+            if (nodes[p].val>val) p=nodes[p].lson;
+            else p=nodes[p].rson;
+        }
+        return p;
+    }
+
+    int pre(T val) const
+    {
+        int p=rt,res=-1;
+        while (p!=-1)
+        {
+            if (nodes[p].val<val) res=p,p=nodes[p].rson;
+            else p=nodes[p].lson;
+        }
+        return res;
+    }
+
+    int nxt(T val) const
+    {
+        int p=rt,res=-1;
+        while (p!=-1)
+        {
+            if (nodes[p].val>val) res=p,p=nodes[p].lson;
+            else p=nodes[p].rson;
+        }
+        return res;
+    }
+
+    int rank(T val) const
+    {
+        int p=rt,k=1;
+        while (p!=-1)
+        {
+            
+            if (nodes[p].val==val) return siz(nodes[p].lson)+k;
+            if (nodes[p].val>val) p=nodes[p].lson;
+            else k+=siz(p)-siz(nodes[p].rson),p=nodes[p].rson;
+        }
+        return k;
+    }
+
+    int kth(int k) const
+    {
+        if (siz(rt)<k) return -1;
+        int p=rt;
+        while (p!=-1)
+        {
+            if (nodes[p].lson!=-1 && k<=siz(nodes[p].lson)) p=nodes[p].lson;
+            else if (nodes[p].rson!=-1 && k>siz(p)-siz(nodes[p].rson)) k-=siz(p)-siz(nodes[p].rson),p=nodes[p].rson;
+            else break;
+        }
+        return p;
+    }
+};
+
+template<typename T> struct Treap: BST<T>
+{
+    using BST<T>::nodes,BST<T>::rt;
+    using BST<T>::siz,BST<T>::maintain,BST<T>::newnode;
+    using BST<T>::find,BST<T>::pre,BST<T>::nxt,BST<T>::rank,BST<T>::kth;
+
+    mt19937 rnd;
+
+    bool check(int u,int v) {return int(rnd()%(siz(u)+siz(v)))<siz(u);}
+
+    pair<int,int> split(int u,T val)
+    {
+        if (u==-1) return {-1,-1};
+        if (nodes[u].val>val)
+        {
+            const auto [r1,r2]=split(nodes[u].lson,val);
+            nodes[u].lson=r2; maintain(u);
+            return {r1,u};
+        }
+        else
+        {
+            const auto [r1,r2]=split(nodes[u].rson,val);
+            nodes[u].rson=r1; maintain(u);
+            return {u,r2};
+        }
+    }
+
+    int merge(int u,int v)
+    {
+        if (u==-1) return v;
+        if (v==-1) return u;
+        if (check(u,v))
+        {
+            nodes[u].rson=merge(nodes[u].rson,v); maintain(u);
+            return u;
+        }
+        else
+        {
+            nodes[v].lson=merge(u,nodes[v].lson); maintain(v);
+            return v;
+        }
+    }
+
+    void insert(T val)
+    {
+        auto [u1,u2]=split(rt,val-1);
+        auto [v1,v2]=split(u2,val);
+        if (v1==-1) v1=merge(v1,newnode(val));
+        else nodes[v1].cnt++,maintain(v1);
+        u2=merge(v1,v2); rt=merge(u1,u2);
+    }
+
+    void erase(T val)
+    {
+        auto [u1,u2]=split(rt,val-1);
+        auto [v1,v2]=split(u2,val);
+        if (v1==-1) return;
+        nodes[v1].cnt--; maintain(v1);
+        if (!nodes[v1].cnt) v1=-1;
+        u2=merge(v1,v2); rt=merge(u1,u2);
+    }
+};
