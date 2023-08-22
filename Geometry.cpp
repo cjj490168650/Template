@@ -5,6 +5,7 @@ using namespace std;
 using point_t=long double;  //全局数据类型
 
 constexpr point_t eps=1e-8;
+constexpr point_t INF=numeric_limits<point_t>::max();
 constexpr long double PI=3.1415926535897932384l;
 
 // 点与向量
@@ -210,32 +211,24 @@ template<typename T> struct convex: polygon<T>
     }
 
     // 旋转卡壳
-    // func 为更新答案的函数，可以根据题目调整位置
-    template<typename F> void rotcaliper(const F &func) const
-    {
-        const auto &p=this->p;
-        const auto area=[](const point<T> &u,const point<T> &v,const point<T> &w){return (w-u)^(w-v);};
-        for (size_t i=0,j=1;i<p.size();i++)
-        {
-            const auto nxti=this->nxt(i);
-            func(p[i],p[nxti],p[j]);
-            while (area(p[this->nxt(j)],p[i],p[nxti])>=area(p[j],p[i],p[nxti]))
-            {
-                j=this->nxt(j);
-                func(p[i],p[nxti],p[j]);
-            }
-        }
-    }
-
-    // 凸多边形的直径的平方
-    T diameter2() const
+    // 例：凸多边形的直径的平方
+    T rotcaliper() const
     {
         const auto &p=this->p;
         if (p.size()==1) return 0;
         if (p.size()==2) return p[0].dis2(p[1]);
+        const auto area=[](const point<T> &u,const point<T> &v,const point<T> &w){return (w-u)^(w-v);};
         T ans=0;
-        auto func=[&](const point<T> &u,const point<T> &v,const point<T> &w){ans=max({ans,w.dis2(u),w.dis2(v)});};
-        rotcaliper(func);
+        for (size_t i=0,j=1;i<p.size();i++)
+        {
+            const auto nxti=this->nxt(i);
+            ans=max({ans,p[j].dis2(p[i]),p[j].dis2(p[nxti])});
+            while (area(p[this->nxt(j)],p[i],p[nxti])>=area(p[j],p[i],p[nxti]))
+            {
+                j=this->nxt(j);
+                ans=max({ans,p[j].dis2(p[i]),p[j].dis2(p[nxti])});
+            }
+        }
         return ans;
     }
     
@@ -249,7 +242,7 @@ template<typename T> struct convex: polygon<T>
         if (p.size()==2) return segment<T>{p[0],p[1]}.is_on(a)?-1:0; 
         if (a==p[0]) return -1;
         if ((p[1]-p[0]).toleft(a-p[0])==-1 || (p.back()-p[0]).toleft(a-p[0])==1) return 0;
-        const auto cmp=[&](const Point &u,const Point &v){return (u-p[0]).toleft(v-p[0])==1;};
+        const auto cmp=[&](const point<T> &u,const point<T> &v){return (u-p[0]).toleft(v-p[0])==1;};
         const size_t i=lower_bound(p.begin()+1,p.end(),a,cmp)-p.begin();
         if (i==1) return segment<T>{p[0],p[i]}.is_on(a)?-1:0;
         if (i==p.size()-1 && segment<T>{p[0],p[i]}.is_on(a)) return -1;
@@ -266,7 +259,7 @@ template<typename T> struct convex: polygon<T>
         const auto check=[&](const size_t i){return dir(p[i]).toleft(p[this->nxt(i)]-p[i])>=0;};
         const auto dir0=dir(p[0]); const auto check0=check(0);
         if (!check0 && check(p.size()-1)) return 0;
-        const auto cmp=[&](const Point &v)
+        const auto cmp=[&](const point<T> &v)
         {
             const size_t vi=&v-p.data();
             if (vi==0) return 1;
@@ -571,7 +564,7 @@ pair<point_t,point_t> minmax_triangle(const vector<Point> &vec)
     if (vec.size()<=2) return {0,0};
     vector<pair<int,int>> evt;
     evt.reserve(vec.size()*vec.size());
-    point_t maxans=0,minans=numeric_limits<point_t>::max();
+    point_t maxans=0,minans=INF;
     for (size_t i=0;i<vec.size();i++)
     {
         for (size_t j=0;j<vec.size();j++)
@@ -601,6 +594,27 @@ pair<point_t,point_t> minmax_triangle(const vector<Point> &vec)
         if (i<j) swap(vx[i],vx[j]),pos[u]=j,pos[v]=i;
     }
     return {minans,maxans};
+}
+
+// 平面最近点对
+// 扫描线，复杂度 O(nlogn)
+point_t closest_pair(vector<Point> points)
+{
+    sort(points.begin(),points.end());
+    const auto cmpy=[](const Point &a,const Point &b){if (abs(a.y-b.y)<=eps) return a.x<b.x-eps; return a.y<b.y-eps;};
+    multiset<Point,decltype(cmpy)> s{cmpy};
+    point_t ans=INF;
+    for (size_t i=0,l=0;i<points.size();i++)
+    {
+        const point_t sqans=sqrtl(ans)+1;
+        while (l<i && points[i].x-points[l].x>=sqans) s.erase(s.find(points[l++]));
+        for (auto it=s.lower_bound(Point{-INF,points[i].y-sqans});it!=s.end()&&it->y-points[i].y<=sqans;it++)
+        {
+            ans=min(ans,points[i].dis2(*it));
+        }
+        s.insert(points[i]);
+    }
+    return ans;
 }
 
 // 判断多条线段是否有交点
